@@ -25,9 +25,9 @@ The code also contains season-transition functions, a bridge between Ekstraklasa
 - [Season simulation](simulation.md) distinguishes static and chronological paths.
 - [Polish Cup model](polish-cup.md) explains knockout progression, lower-tier ratings, and the league boundary.
 - [Scale and performance](scale-and-performance.md) documents API defaults, larger-application path counts, and a measured benchmark.
-- [API guide](api.md) identifies practical entry points and calls out interfaces whose private defaults are absent.
+- [API guide](api.md) identifies practical entry points and the remaining documented compatibility fallbacks.
 - [Limitations and glossary](limitations-and-glossary.md) defines terms and interpretation limits.
 
 ## Intended use
 
-This was designed as a personal, low-consequence forecasting model. Closing odds may be used by evaluation code as a benchmark, but they are not model inputs. Forecasts describe distributions, not certainties or betting advice. Reassess the assumptions and validation before using the implementation for material financial decisions, automation, or public claims.
+This was designed as a personal, low-consequence forecasting model. The private evaluation workflow may use closing odds as a benchmark, but they are not model inputs or part of this export. Forecasts describe distributions, not certainties or betting advice. Reassess the assumptions and validation before using the implementation for material financial decisions, automation, or public claims.

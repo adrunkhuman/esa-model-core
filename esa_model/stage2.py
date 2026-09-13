@@ -1,19 +1,16 @@
 """Covariate-informed season-start priors for the sequential strength model."""
 
-import argparse
 import csv
-import json
 import math
 from collections import defaultdict
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 
 import numpy as np
 
-from esa_model.baseline import Match, load_matches
-from esa_model.stage1 import FrozenGlobals, SequentialDCModel, TeamState, freeze_globals, league_state_update_start_date
-from esa_model.team_identity import load_canonical_club_ids
+from esa_model.baseline import Match
+from esa_model.stage1 import FrozenGlobals, SequentialDCModel, TeamState, league_state_update_start_date
 
 COVARIATE_START_SEASON = "2008/09"
 RIDGE_ALPHA = 1.0
@@ -372,92 +369,3 @@ def build_hybrid_rolling_priors(
                 fit.returning_defense_variance,
             )
     return priors, fits
-
-
-def coefficient_rows(fits: dict[str, PriorFit]) -> list[dict[str, object]]:
-    output: list[dict[str, object]] = []
-    for season, prior in sorted(fits.items()):
-        for fit in (prior.attack, prior.defense):
-            row: dict[str, object] = {"evaluation_season": season, "target": fit.target, "intercept": fit.intercept}
-            row.update(dict(zip(FEATURE_NAMES, fit.coefficients, strict=True)))
-            row["promoted_residual_variance"] = (
-                prior.promoted_attack_variance if fit.target == "attack" else prior.promoted_defense_variance
-            )
-            row["returning_residual_variance"] = (
-                prior.returning_attack_variance if fit.target == "attack" else prior.returning_defense_variance
-            )
-            output.append(row)
-    return output
-
-
-def write_csv(path: Path, rows: list[dict[str, object]]) -> None:
-    with path.open("w", encoding="utf-8", newline="") as destination:
-        writer = csv.DictWriter(destination, fieldnames=list(rows[0]), lineterminator="\n")
-        writer.writeheader()
-        writer.writerows(rows)
-
-
-def load_stage2_data(
-    matches_path: Path = Path("data/matches.csv"),
-    mapping_path: Path = Path("data/team_mapping.csv"),
-    squad_path: Path = Path("data/squad_values.csv"),
-    promotion_path: Path = Path("data/promoted_teams.csv"),
-) -> tuple[list[Match], dict[tuple[str, str], str], list[CovariateTarget], FrozenGlobals]:
-    matches = load_matches(matches_path)
-    seasons = sorted({match.season for match in matches})
-    globals_, _ = freeze_globals(matches, seasons)
-    canonical_ids = load_canonical_club_ids(mapping_path)
-    with Path("diagnostics/rolling_pseudo_holdout.json").open(encoding="utf-8") as source:
-        stage1_folds = json.load(source)["folds"]
-    parameters_by_season = {
-        str(row["test_season"]): (
-            float(row["selected_annual_drift_variance"]),
-            float(row["selected_summer_variance"]),
-        )
-        for row in stage1_folds
-    }
-    covariate_seasons = [season for season in seasons if season >= COVARIATE_START_SEASON]
-    earliest_parameters = parameters_by_season[min(parameters_by_season)]
-    history_cache: dict[tuple[float, float], tuple[list[StateTarget], dict[tuple[str, str], TeamState]]] = {}
-    targets = []
-    previous_states: dict[tuple[str, str], TeamState] = {}
-    for season in covariate_seasons:
-        parameters = parameters_by_season.get(season, earliest_parameters)
-        if parameters not in history_cache:
-            history_cache[parameters] = extract_state_history(matches, *parameters, globals_, canonical_ids)
-        history_targets, final_states = history_cache[parameters]
-        season_targets = [target for target in history_targets if target.season == season]
-        targets.extend(season_targets)
-        previous_season = seasons[seasons.index(season) - 1]
-        for target in season_targets:
-            previous = final_states.get((previous_season, target.canonical_club_id))
-            if previous is not None:
-                previous_states[season, target.canonical_club_id] = previous
-    rows = assemble_covariate_targets(
-        targets,
-        previous_states,
-        load_squad_features(squad_path),
-        load_promotion_features(promotion_path),
-    )
-    return matches, canonical_ids, rows, globals_
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-directory", type=Path, default=Path("diagnostics"))
-    args = parser.parse_args()
-    args.output_directory.mkdir(exist_ok=True)
-    _, _, rows, _ = load_stage2_data()
-    _, fits = build_hybrid_rolling_priors(rows)
-    target_rows = []
-    for row in rows:
-        record = asdict(row)
-        record["target_cutoff_date"] = row.target_cutoff_date.isoformat()
-        target_rows.append(record)
-    write_csv(args.output_directory / "stage2_covariate_targets.csv", target_rows)
-    write_csv(args.output_directory / "stage2_coefficients.csv", coefficient_rows(fits))
-    print(json.dumps({"team_seasons": len(rows), "seasons": len({row.season for row in rows})}, indent=2))
-
-
-if __name__ == "__main__":
-    main()

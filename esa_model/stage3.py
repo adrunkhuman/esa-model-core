@@ -10,8 +10,8 @@ from pathlib import Path
 import numpy as np
 
 from esa_model.baseline import Match
-from esa_model.stage1 import FrozenGlobals, SequentialDCModel, TeamState, freeze_globals
-from esa_model.stage2 import CovariateTarget, build_hybrid_rolling_priors, load_stage2_data, winter_cutoffs
+from esa_model.stage1 import FrozenGlobals, SequentialDCModel, TeamState
+from esa_model.stage2 import CovariateTarget, build_hybrid_rolling_priors, winter_cutoffs
 
 TEAM_DRIFT_VARIANCE = 0.019682003781078598
 SUMMER_VARIANCE = 0.0030916820425413915
@@ -480,107 +480,3 @@ def build_rank_priors(
                 hedge.defense_variance,
             )
     return priors
-
-
-def provisional_promoted_states(
-    target_season: str,
-    source_season: str,
-    opening: date,
-    canonical_club_ids: set[str],
-    auxiliary_path: Path = Path("data/tier_matches.csv"),
-    mapping_path: Path = Path("data/team_mapping.csv"),
-) -> dict[str, TeamState]:
-    """Map canonical clubs from a completed I liga season into a future Ekstraklasa opening.
-
-    The source season must exist in the auxiliary league history, and ``opening`` must follow its final match. The
-    mapping uses the configured tier/Ekstraklasa identity file and the causal bridge state at the target opening.
-    Returned states are keyed by canonical club ID. A missing source-season I liga state raises ``ValueError``.
-    """
-    matches, canonical_ids, _, globals_ = load_stage2_data(mapping_path=mapping_path)
-    auxiliary = load_auxiliary_matches(auxiliary_path, mapping_path)
-    cup_matches = top_two_cup_matches(auxiliary)
-    liga_matches = as_league_matches(auxiliary)
-    liga_seasons = sorted({match.season for match in liga_matches})
-    liga_globals, _ = freeze_globals(liga_matches, liga_seasons)
-    liga_history = extract_league_history(liga_matches, liga_globals, cup_matches)
-    ek_history = extract_league_history(canonical_ek_matches(matches, canonical_ids), globals_, cup_matches)
-    transitions = transition_observations(ek_history, liga_history)
-    openings = {
-        season: min(match.date for match in matches if match.season == season)
-        for season in sorted({match.season for match in matches})
-    }
-    openings[target_season] = opening
-    bridge = build_bridge_snapshots(
-        cup_matches,
-        transitions,
-        ek_history,
-        liga_history,
-        openings,
-        globals_,
-    )[target_season]
-    inactive_variance = offseason_variance(liga_history.final_dates[source_season], opening)
-    attack_design = np.zeros(len(bridge.mean))
-    attack_design[ATTACK_OFFSET] = 1.0
-    attack_design[PROMOTION_BIAS] = 1.0
-    defense_design = np.zeros(len(bridge.mean))
-    defense_design[DEFENSE_OFFSET] = 1.0
-    defense_design[PROMOTION_BIAS] = 1.0
-    output = {}
-    for club_id in canonical_club_ids:
-        source = liga_history.final_states.get((source_season, club_id))
-        if source is None:
-            raise ValueError(f"No {source_season} I liga state for promoted club {club_id}")
-        output[club_id] = TeamState(
-            source.attack_mean + float(attack_design @ bridge.mean),
-            max(
-                source.attack_variance + inactive_variance + float(attack_design @ bridge.covariance @ attack_design),
-                PROMOTED_ATTACK_VARIANCE_FLOOR,
-            ),
-            source.defense_mean + float(defense_design @ bridge.mean),
-            max(
-                source.defense_variance
-                + inactive_variance
-                + float(defense_design @ bridge.covariance @ defense_design),
-                PROMOTED_DEFENSE_VARIANCE_FLOOR,
-            ),
-        )
-    return output
-
-
-def load_stage3_data(
-    auxiliary_path: Path = Path("data/tier_matches.csv"),
-    mapping_path: Path = Path("data/team_mapping.csv"),
-    bridge_process_variances: np.ndarray = BRIDGE_PROCESS_VARIANCES,
-) -> tuple[
-    list[Match],
-    dict[tuple[str, str], str],
-    list[CovariateTarget],
-    FrozenGlobals,
-    dict[tuple[str, str], TeamState],
-    dict[str, BridgeState],
-    dict[str, int],
-]:
-    matches, canonical_ids, covariates, globals_ = load_stage2_data(mapping_path=mapping_path)
-    auxiliary = load_auxiliary_matches(auxiliary_path, mapping_path)
-    cup_matches = top_two_cup_matches(auxiliary)
-    liga_matches = as_league_matches(auxiliary)
-    liga_seasons = sorted({match.season for match in liga_matches})
-    liga_globals, _ = freeze_globals(liga_matches, liga_seasons)
-    liga_history = extract_league_history(liga_matches, liga_globals, cup_matches)
-    ek_history = extract_league_history(canonical_ek_matches(matches, canonical_ids), globals_, cup_matches)
-    transitions = transition_observations(ek_history, liga_history)
-    openings = {
-        season: min(match.date for match in matches if match.season == season)
-        for season in sorted({m.season for m in matches})
-    }
-    bridge = build_bridge_snapshots(
-        cup_matches,
-        transitions,
-        ek_history,
-        liga_history,
-        openings,
-        globals_,
-        bridge_process_variances,
-    )
-    priors, coverage = build_stage3_priors(covariates, liga_history, bridge, openings)
-    return matches, canonical_ids, covariates, globals_, priors, bridge, coverage

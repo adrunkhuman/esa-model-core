@@ -23,7 +23,7 @@ The optional C extension accelerates motivation simulations. Installation contin
 
 ## What callers provide
 
-The exported code does not contain fitted team state or a complete model assembly. Callers construct model globals, priors, fixtures, optional xG observations, and most policy inputs themselves. File-loading helpers remain where they explain the original interfaces, but their private default files are not included. The source boundary document identifies the selected constants and canonical derby IDs that remain embedded.
+The exported code does not contain fitted team state or a complete model assembly. Callers construct model globals, priors, fixtures, optional xG observations, Cup context, and most policy inputs themselves. Reusable CSV parsing remains for caller-owned match and covariate data, but private research CLIs, diagnostic assembly, and operational data preparation are not exported. The source boundary document identifies the selected constants and canonical derby IDs that remain embedded.
 
 Public or synthetic season simulations must pass an explicit relocation policy. Use `RelocatedHomeHfaPolicy(())` to state that no fixtures are relocated. Omitting the argument retains the private application's operational default and expects its non-exported policy CSV.
 

@@ -1,17 +1,9 @@
 """Naive Dixon-Coles baseline for Ekstraklasa match outcomes."""
 
-import argparse
-import bisect
 import csv
-import json
-import math
-import os
-from collections import defaultdict
-from concurrent.futures import ProcessPoolExecutor
-from dataclasses import asdict, dataclass
-from datetime import date, timedelta
+from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
-from typing import Any
 
 import numpy as np
 from numpy.typing import NDArray
@@ -21,12 +13,8 @@ from scipy.stats import poisson
 
 FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int64]
-WINDOW_DAYS = 1_096
 MAX_GOALS = 10
 RIDGE = 0.1
-NAIVE = (0.44, 0.27, 0.29)
-HALF_LIVES = (0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0)
-HOLDOUT_SEASONS = 4
 BURN_IN_SEASONS = 3
 
 
@@ -57,25 +45,6 @@ class Model:
     home_advantage: float
     rho: float
     converged: bool
-
-
-@dataclass(frozen=True, slots=True)
-class Prediction:
-    match_id: str
-    date: date
-    season: str
-    home_team_id: str
-    away_team_id: str
-    home_goals: int
-    away_goals: int
-    home_xg: float
-    away_xg: float
-    p_home: float
-    p_draw: float
-    p_away: float
-    outcome: int
-    rps: float
-    cold_start: bool
 
 
 def load_matches(path: Path) -> list[Match]:
@@ -116,27 +85,6 @@ def load_matches(path: Path) -> list[Match]:
             )
             match_ids.add(match_id)
     return sorted(matches, key=lambda match: (match.date, match.match_id))
-
-
-def load_odds(path: Path) -> dict[str, tuple[float, float, float]]:
-    with path.open(encoding="utf-8", newline="") as source:
-        rows = csv.DictReader(source)
-        required = {"match_id", "home_odds", "draw_odds", "away_odds"}
-        missing = required - set(rows.fieldnames or ())
-        if missing:
-            raise ValueError(f"Missing odds columns: {', '.join(sorted(missing))}")
-        odds = {}
-        for row in rows:
-            match_id = row["match_id"]
-            if not match_id:
-                raise ValueError("Odds row has an empty match ID")
-            if match_id in odds:
-                raise ValueError(f"Duplicate odds match ID: {match_id}")
-            values = (float(row["home_odds"]), float(row["draw_odds"]), float(row["away_odds"]))
-            if not all(math.isfinite(value) and value > 1.0 for value in values):
-                raise ValueError(f"Match {match_id} odds must be finite and greater than one")
-            odds[match_id] = values
-        return odds
 
 
 def unpack(parameters: FloatArray, team_count: int) -> tuple[FloatArray, FloatArray, float, float]:
@@ -291,174 +239,3 @@ def rps(probability: tuple[float, float, float], outcome: int) -> float:
     cumulative = (probability[0], probability[0] + probability[1])
     actual = (float(outcome == 0), float(outcome <= 1))
     return sum((predicted - observed) ** 2 for predicted, observed in zip(cumulative, actual, strict=True)) / 2
-
-
-def walk_forward(matches: list[Match], xi: float, evaluation_seasons: set[str]) -> list[Prediction]:
-    dates = [match.date for match in matches]
-    teams_by_season: dict[str, set[str]] = defaultdict(set)
-    for match in matches:
-        teams_by_season[match.season].update((match.home, match.away))
-    seasons = sorted(teams_by_season)
-    predictions = []
-    warm = None
-    for evaluation_date in sorted({match.date for match in matches if match.season in evaluation_seasons}):
-        start = bisect.bisect_left(dates, evaluation_date - timedelta(days=WINDOW_DAYS))
-        end = bisect.bisect_left(dates, evaluation_date)
-        model = fit(matches[start:end], evaluation_date, xi, warm)
-        warm = model
-        model_index = {team: index for index, team in enumerate(model.teams)}
-        tests = matches[end : bisect.bisect_right(dates, evaluation_date)]
-        for match in tests:
-            if match.season not in evaluation_seasons:
-                continue
-            season_index = seasons.index(match.season)
-            relegated = teams_by_season[seasons[season_index - 1]] - teams_by_season[match.season]
-            fallback_indices = [model_index[team] for team in relegated if team in model_index]
-            if fallback_indices:
-                fallback = (
-                    float(model.attack[fallback_indices].mean()),
-                    float(model.defense[fallback_indices].mean()),
-                )
-            else:
-                fallback = float(model.attack.mean()), float(model.defense.mean())
-            home_attack, home_defense = (
-                (model.attack[model_index[match.home]], model.defense[model_index[match.home]])
-                if match.home in model_index
-                else fallback
-            )
-            away_attack, away_defense = (
-                (model.attack[model_index[match.away]], model.defense[model_index[match.away]])
-                if match.away in model_index
-                else fallback
-            )
-            home_rate = float(np.exp(home_attack + away_defense + model.home_advantage))
-            away_rate = float(np.exp(away_attack + home_defense))
-            outcome_probability = probabilities(home_rate, away_rate, model.rho)
-            predictions.append(
-                Prediction(
-                    match.match_id,
-                    match.date,
-                    match.season,
-                    match.home,
-                    match.away,
-                    match.home_goals,
-                    match.away_goals,
-                    home_rate,
-                    away_rate,
-                    *outcome_probability,
-                    match.outcome,
-                    rps(outcome_probability, match.outcome),
-                    match.home not in model_index or match.away not in model_index,
-                )
-            )
-    return predictions
-
-
-def evaluate_half_life(arguments: tuple[Path, float, set[str]]) -> tuple[float, list[Prediction]]:
-    path, half_life, seasons = arguments
-    return half_life, walk_forward(load_matches(path), math.log(2) / half_life, seasons)
-
-
-def mean_rps(predictions: list[Prediction]) -> dict[str, float | int]:
-    return {
-        "matches": len(predictions),
-        "model_rps": sum(prediction.rps for prediction in predictions) / len(predictions),
-        "naive_rps": sum(rps(NAIVE, prediction.outcome) for prediction in predictions) / len(predictions),
-        "cold_starts": sum(prediction.cold_start for prediction in predictions),
-    }
-
-
-def odds_probability(odds: tuple[float, float, float]) -> tuple[float, float, float]:
-    inverted = (1 / odds[0], 1 / odds[1], 1 / odds[2])
-    total = sum(inverted)
-    return inverted[0] / total, inverted[1] / total, inverted[2] / total
-
-
-def add_market(
-    predictions: list[Prediction], odds: dict[str, tuple[float, float, float]], holdout_seasons: set[str]
-) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    rows = []
-    for prediction in predictions:
-        row = asdict(prediction)
-        row["date"] = prediction.date.isoformat()
-        if prediction.match_id in odds:
-            market_probability = odds_probability(odds[prediction.match_id])
-            row.update(
-                {
-                    "market_p_home": market_probability[0],
-                    "market_p_draw": market_probability[1],
-                    "market_p_away": market_probability[2],
-                    "market_rps": rps(market_probability, prediction.outcome),
-                }
-            )
-        else:
-            row.update({"market_p_home": "", "market_p_draw": "", "market_p_away": "", "market_rps": ""})
-        rows.append(row)
-
-    common = [row for row in rows if row["market_rps"] != ""]
-    holdout = [row for row in common if row["season"] in holdout_seasons]
-
-    def metrics(selected: list[dict[str, Any]]) -> dict[str, float | int]:
-        return {
-            "matches": len(selected),
-            "naive_rps": sum(rps(NAIVE, row["outcome"]) for row in selected) / len(selected),
-            "model_rps": sum(row["rps"] for row in selected) / len(selected),
-            "market_rps": sum(row["market_rps"] for row in selected) / len(selected),
-        }
-
-    comparison = {
-        "all_common_matches": metrics(common),
-        "holdout": metrics(holdout),
-    }
-    return rows, comparison
-
-
-def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--workers", type=int, default=min(8, os.cpu_count() or 1))
-    args = parser.parse_args()
-    data_path = Path("data/matches.csv")
-    matches = load_matches(data_path)
-    odds = load_odds(Path("data/odds.csv"))
-    seasons = sorted({match.season for match in matches})
-    evaluation_seasons = seasons[BURN_IN_SEASONS:]
-    holdout_seasons = set(evaluation_seasons[-HOLDOUT_SEASONS:])
-    tuning_seasons = set(evaluation_seasons) - holdout_seasons
-    tasks = [(data_path, half_life, set(evaluation_seasons)) for half_life in HALF_LIVES]
-    with ProcessPoolExecutor(max_workers=args.workers) as executor:
-        results = list(executor.map(evaluate_half_life, tasks))
-
-    decay_search = []
-    by_half_life = {}
-    for half_life, predictions in results:
-        by_half_life[half_life] = predictions
-        tuning = [prediction for prediction in predictions if prediction.season in tuning_seasons]
-        decay_search.append({"half_life": half_life, **mean_rps(tuning)})
-    selected = min(decay_search, key=lambda row: row["model_rps"])
-    selected_half_life = float(selected["half_life"])
-    predictions = by_half_life[selected_half_life]
-    tuning = [prediction for prediction in predictions if prediction.season in tuning_seasons]
-    holdout = [prediction for prediction in predictions if prediction.season in holdout_seasons]
-    rows, market_comparison = add_market(predictions, odds, holdout_seasons)
-    with Path("artifacts/baseline_predictions.csv").open("w", encoding="utf-8", newline="") as output:
-        writer = csv.DictWriter(output, fieldnames=list(rows[0]))
-        writer.writeheader()
-        writer.writerows(rows)
-    result = {
-        "model": {
-            "window_days": WINDOW_DAYS,
-            "ridge": RIDGE,
-            "score_matrix": "0..10, normalized",
-            "selected_half_life": selected_half_life,
-        },
-        "tuning": mean_rps(tuning),
-        "holdout": mean_rps(holdout),
-        "decay_search": decay_search,
-        "market_comparison": market_comparison,
-    }
-    Path("artifacts/baseline_results.json").write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
-    print(json.dumps(result, indent=2))
-
-
-if __name__ == "__main__":
-    main()

@@ -71,7 +71,7 @@ Unknown draws and match advancement are then sampled round by round. Repeating p
 
 ## Relationship to league state
 
-The exported standalone Cup projection reads a supplied league state but does not update it. Future simulated Cup outcomes also do not update the cross-tier bridge. A prepared bridge may already reflect caller-supplied historical matches between Ekstraklasa and I liga clubs; that historical preparation is separate from forecasting future ties.
+The exported standalone Cup projection reads a caller-constructed `CupProjectionContext` and supplied league state but does not update either. Future simulated Cup outcomes also do not update the cross-tier bridge. A supplied bridge may already reflect historical matches between Ekstraklasa and I liga clubs; preparing operational source data is outside the export.
 
 The private application has a non-exported joint-calendar orchestrator. It interleaves league and Cup event dates inside each outer path. At a Cup date, an Ekstraklasa entrant reads that path's currently sampled league strength, so league form uncertainty and Cup prospects co-vary.
 
@@ -91,7 +91,7 @@ With caller-created ratings, bridge moments, and tournament rules, these exporte
 - `advancement_probabilities` for one-tie advancement; and
 - `tournament_final_win_probabilities` for a complete staged knockout simulation.
 
-`cup_projection.prepare_cup_projection_context` and `project_cup` are also present, but their default paths refer to datasets that are not exported. To use them, callers must provide equivalent checked files and a compatible league model. The safest source-only introduction is to construct `CupTeamRating`, `BridgeState`, and `TournamentRules` explicitly with synthetic inputs.
+`cup_projection.project_cup` accepts a caller-constructed `CupProjectionContext` and compatible league model. The private JSON loaders, identity mapping, lower-tier replay, and `prepare_cup_projection_context` assembly are not exported. The safest source-only introduction is to construct `CupTeamRating`, `BridgeState`, and `TournamentRules` explicitly with synthetic inputs.
 
 ## Main approximations
 

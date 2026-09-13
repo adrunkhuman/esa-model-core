@@ -18,16 +18,16 @@ It is a useful reference implementation, but not a complete export of the privat
 - Immutable forecast contracts and probability-attribution helpers.
 - Optional native motivation-kernel source.
 
-Stage 2, Stage 3, xG, promotion-related, and Cup modules are included because their algorithms are informative. Their loaders require files that are not distributed.
+Stage 2, Stage 3, xG, promotion-related, and Cup modules are included because their reusable algorithms are informative. Private diagnostics-bound assembly, operational data preparation, and research CLIs are not included.
 
 ## Excluded
 
 - Match, score, xG, attendance, squad, venue, schedule, Cup, and identity-mapping datasets.
 - Fitted team states, fitted coefficient posteriors, generated predictions, plots, diagnostics, and databases.
-- Operational model assembly, provider refreshers, frontend storage, release identifiers, deployment code, benchmark logs, and research history.
+- Operational model assembly, diagnostics-bound Stage 2 and Stage 3 loaders, Cup source/context preparation, provider refreshers, frontend storage, release identifiers, deployment code, benchmark logs, and research history.
 - The original repository's Git history.
 
-No exported function downloads data automatically. Some loaders and command-line `main` functions nevertheless retain paths expected by the larger application. A missing default file is a boundary signal, not an invitation to invent a replacement silently.
+No exported function downloads data automatically. The export has no private fitting or artifact-report command-line entry points. Reusable loaders accept explicit caller-owned paths; policy compatibility fallbacks that remain are documented and may still refer to files outside the export.
 
 ## Caller responsibilities
 
@@ -48,7 +48,7 @@ Inputs at a prediction cutoff must contain only information available by that cu
 
 ## Embedded assumptions and defaults
 
-This is not a coefficient-free framework. Source modules retain numeric defaults for scoring support, quadrature, uncertainty candidates, state transitions, transforms for clubs promoted from I liga, lower-tier/Cup mechanics, relocation distance, motivation-policy fields, and the derby shift. Some values were selected in work whose datasets and experiment records are not public here.
+This is not a coefficient-free framework. Source modules retain numeric defaults for scoring support, quadrature, state transitions, transforms for clubs promoted from I liga, lower-tier/Cup mechanics, relocation distance, motivation-policy fields, and the derby shift. Research search grids and report defaults are private. Some retained values were selected in work whose datasets and experiment records are not public here.
 
 [Scale and performance](scale-and-performance.md) also records selected operational path counts and a concise timing summary. Those values are published to explain realistic compute scale. They do not expose the underlying data copies, full benchmark logs, release lineage, or deployment procedure, and they do not make the omitted application assembly part of this export.
 

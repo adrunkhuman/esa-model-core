@@ -164,12 +164,12 @@ Constructing these dataclasses does not calculate a forecast. The assembly layer
 
 ## Fitting and data utilities
 
-- `baseline` fits and evaluates a fixed-strength Dixon–Coles model. Its odds helpers are evaluation utilities, not forecast inputs.
-- `stage1` contains sequential marginal-state fitting and evaluation.
-- `stage2` fits covariate priors from caller data.
-- `stage3` constructs cross-tier bridge histories and priors for clubs promoted from I liga.
+- `baseline` parses caller-owned match CSVs and fits a fixed-strength Dixon–Coles model.
+- `stage1` contains sequential marginal-state fitting and walk-forward prediction.
+- `stage2` fits covariate priors from caller-supplied rows.
+- `stage3` applies caller-supplied league histories to cross-tier bridge and promoted-prior calculations.
 - `xg_model` loads source-linked xG and fits causal source-to-goal calibration.
 - `continuity_transition_policy` handles continuity for clubs remaining in Ekstraklasa. `promoted_squad_policy` and `promoted_uncertainty_policy` handle clubs promoted from I liga; their module names remain unchanged.
 - `cup_side` and `cup_projection` provide the calculations described in the [Polish Cup model](polish-cup.md).
 
-Several `main()` functions and default paths belong to the original research workflow. They cannot run from this export without datasets and are not supported as a one-command public pipeline.
+Private research CLIs, odds comparisons, artifact reports, diagnostics-bound Stage 2 and Stage 3 assembly, and Cup source/context preparation are not exported. There is no one-command public fitting pipeline.

@@ -65,7 +65,7 @@ A real run requires more than replacing the team names. The caller must supply:
 - explicit relocation periods and, if wanted, motivation coefficients and point adjustments; and
 - enough Monte Carlo paths for the required precision.
 
-The export has loaders and fitting utilities for some of these tasks, but it does not provide the source files or one command that assembles an operational model. Do not infer operational reproduction from a successful synthetic run.
+The export has reusable match parsing and fitting utilities for some of these tasks, but it does not provide private data assembly, research CLIs, source files, or one command that assembles an operational model. Do not infer operational reproduction from a successful synthetic run.
 
 Very small path counts are useful for wiring only. A fixed seed makes a given configuration reproducible; it does not remove Monte Carlo error. See [Scale and performance](scale-and-performance.md) before comparing the example count, core API defaults, and the larger application's production settings.
 
