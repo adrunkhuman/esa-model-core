@@ -1,0 +1,37 @@
+site_name: esa-model-core
+site_description: Source-only reference documentation for an Ekstraklasa forecasting model
+site_url: https://adrunkhuman.github.io/esa-model-core/
+repo_url: https://github.com/adrunkhuman/esa-model-core
+repo_name: adrunkhuman/esa-model-core
+edit_uri: ""
+strict: true
+theme:
+  name: readthedocs
+  locale: en
+  navigation_depth: 3
+  collapse_navigation: false
+  sticky_navigation: true
+plugins:
+  - search
+markdown_extensions:
+  - admonition
+  - attr_list
+  - pymdownx.arithmatex:
+      generic: true
+extra_css:
+  - stylesheets/extra.css
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+nav:
+  - Home: index.md
+  - Quickstart: quickstart.md
+  - Statistical model: statistical-model.md
+  - Worked match: worked-match.md
+  - Priors and policies: priors-and-policies.md
+  - Season simulation: simulation.md
+  - Polish Cup model: polish-cup.md
+  - Scale and performance: scale-and-performance.md
+  - Data and source boundary: data-and-source-boundary.md
+  - API guide: api.md
+  - Limitations and glossary: limitations-and-glossary.md

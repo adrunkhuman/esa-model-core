@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=80", "numpy>=2.5.1"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "esa-model-core"
+version = "0.1.0"
+description = "Source-only reference implementation of an Ekstraklasa forecasting model"
+readme = "README.md"
+authors = [{ name = "adrunkhuman" }]
+license = "MIT-0"
+license-files = ["LICENSE"]
+requires-python = ">=3.14"
+dependencies = [
+    "numpy>=2.5.1",
+    "scipy>=1.18.0",
+    "tzdata>=2025.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.15.21",
+    "setuptools>=84.0.0",
+    "ty>=0.0.59",
+]
+docs = [
+    "mkdocs>=1.6.1",
+    "pymdown-extensions>=10.20.1",
+]
+
+[tool.uv]
+package = true
+
+[tool.setuptools.packages.find]
+include = ["esa_model*"]
+
+[tool.ruff]
+target-version = "py314"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]
+ignore = ["E501"]
+
+[tool.ty.environment]
+python = "./.venv"
+python-version = "3.14"

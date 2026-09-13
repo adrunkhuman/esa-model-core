@@ -1,0 +1,25 @@
+/* Keep identifiers readable in the Read the Docs theme's narrow content column. */
+.rst-content :not(pre) > code {
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
+}
+
+/* Preserve code layout and make overflow local to the example. */
+.rst-content pre {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.rst-content pre code {
+  overflow-wrap: normal;
+  white-space: pre;
+  word-break: normal;
+}
+
+/* Long equations should scroll without widening the whole page. */
+.rst-content .arithmatex {
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

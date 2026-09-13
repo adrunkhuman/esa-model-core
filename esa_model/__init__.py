@@ -1,0 +1,1 @@
+"""Ekstraklasa chronological model components."""
